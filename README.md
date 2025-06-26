@@ -20,7 +20,7 @@ Please note that this software is in the alpha stage, and things like display on
 ## Where it runs
 
 This app is designed for deployment **directly in a browser** — no server required.
-You can host it on any static site (GitHub Pages, Netlify, your own domain).  It is currently hosted at https://squidKid-deluxe.github.io/honest-feed-status.
+You can host it on any static site (GitHub Pages, Netlify, your own domain).  It is currently hosted at https://squidKid-deluxe.github.io/HONEST-feed-status.
 
 ## Technologies used
 
