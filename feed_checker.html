@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>HONEST Feed Monitor</title>
+        <script type="text/javascript" src="graphene-rpc.js"></script>
+        <style>
+            body {
+                background-color: #111;
+                color: #fff;
+                font-family: monospace;
+                font-size: 1.3em;
+            }
+            #container {
+                width: 70vw;
+                margin:auto;
+            }
+            .alt {
+                background-color: #222;
+            }
+
+            h1 {
+                text-align: center;
+                width: 100%;
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th,
+            td {
+                text-align: left;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="container">
+            <h1>HONEST Feed Monitor</h1>
+            <p id="updateStamp">Loading...</p>
+            <table id="feedTable"></table>
+        </div>
+        <script type="module">
+            const MPAS = {
+                "HONEST.CNY": "1.3.5641",
+                "HONEST.USD": "1.3.5649",
+                "HONEST.BTC": "1.3.5650",
+                "HONEST.XAU": "1.3.5651",
+                "HONEST.XAG": "1.3.5652",
+                "HONEST.ETH": "1.3.5659",
+                "HONEST.XRP": "1.3.5660",
+                "HONEST.ETH1": "1.3.5661",
+                "HONEST.XRP1": "1.3.5662",
+                "HONEST.USDSHORT": "1.3.6289",
+                "HONEST.BTCSHORT": "1.3.6290",
+                "HONEST.ADA": "1.3.6304",
+                "HONEST.DOT": "1.3.6305",
+                "HONEST.LTC": "1.3.6306",
+                "HONEST.SOL": "1.3.6307",
+                "HONEST.XMR": "1.3.6308",
+                "HONEST.ATOM": "1.3.6309",
+                "HONEST.XLM": "1.3.6310",
+                "HONEST.ALGO": "1.3.6311",
+                "HONEST.FIL": "1.3.6312",
+                "HONEST.EOS": "1.3.6313",
+                "HONEST.RUB": "1.3.6314",
+                "HONEST.EUR": "1.3.6315",
+                "HONEST.GBP": "1.3.6316",
+                "HONEST.JPY": "1.3.6317",
+                "HONEST.KRW": "1.3.6318",
+                "HONEST.ADASHORT": "1.3.6319",
+                "HONEST.DOTSHORT": "1.3.6320",
+                "HONEST.LTCSHORT": "1.3.6321",
+                "HONEST.SOLSHORT": "1.3.6322",
+                "HONEST.XMRSHORT": "1.3.6323",
+                "HONEST.ATOMSHORT": "1.3.6324",
+                "HONEST.XLMSHORT": "1.3.6325",
+                "HONEST.ALGOSHORT": "1.3.6326",
+                "HONEST.FILSHORT": "1.3.6327",
+                "HONEST.EOSSHORT": "1.3.6328",
+                "HONEST.RUBSHORT": "1.3.6329",
+                "HONEST.EURSHORT": "1.3.6330",
+                "HONEST.GBPSHORT": "1.3.6331",
+                "HONEST.JPYSHORT": "1.3.6332",
+                "HONEST.KRWSHORT": "1.3.6333",
+                "HONEST.XRPSHORT": "1.3.6334",
+                "HONEST.ETHSHORT": "1.3.6335",
+                "HONEST.XAUSHORT": "1.3.6336",
+                "HONEST.XAGSHORT": "1.3.6337",
+                "HONEST.CNYSHORT": "1.3.6338",
+            };
+
+            const NODES = [
+                "wss://api.bts.mobi/wss",
+                "wss://api.61bts.com/ws",
+                "wss://api-us.61bts.com",
+                "wss://api.dex.trading/wss",
+                "wss://api.btslebin.com/wss",
+                "wss://eu.nodes.bitshares.ws/ws",
+                "wss://bitsharesapi.loclx.io",
+                "wss://btsws.roelandp.nl/ws",
+                "wss://dex.iobanker.com/ws",
+                "wss://node.xbts.io/ws",
+            ];
+
+            // Init pool
+            const pool = new GrapheneRPCPool(NODES.map((url) => new GrapheneRPC(url)));
+
+            // Precision cache
+            const precisionCache = {};
+            const producerNameCache = {};
+
+            async function getPrecision(assetId) {
+                if (!(assetId in precisionCache)) {
+                    const obj = await pool.getObjects([assetId]);
+                    precisionCache[assetId] = obj[0].precision;
+                }
+                return precisionCache[assetId];
+            }
+
+            async function settlementPrice(data) {
+                if (!data.settlement_price?.base?.amount || !data.settlement_price?.quote?.amount) {
+                    return -1;
+                }
+                const baseAmt = parseInt(data.settlement_price.base.amount);
+                const quoteAmt = parseInt(data.settlement_price.quote.amount);
+                const basePrec = await getPrecision(data.settlement_price.base.asset_id);
+                const quotePrec = await getPrecision(data.settlement_price.quote.asset_id);
+                return baseAmt / 10 ** basePrec / (quoteAmt / 10 ** quotePrec);
+            }
+
+            function fromIsoDate(isoStr) {
+                return new Date(isoStr + "Z").getTime() / 1000;
+            }
+
+            function convertSeconds(secs) {
+                const hours = Math.floor(secs / 3600);
+                const mins = Math.floor((secs % 3600) / 60);
+                const days = Math.floor(hours / 24);
+                if (days > 0) {
+                    return `${days}d ${hours}h ${mins}m`;
+                } else if (hours > 0) {
+                    return `${hours}h ${mins}m`;
+                } else {
+                    return `${mins}m`;
+                }
+            }
+
+
+            function gradient(shade) {
+                let r, g, b
+                if (shade < 128) {  // Black to white
+                    const intensity = shade / 128
+                    r = Math.floor(255 * intensity)
+                    g = Math.floor(255 * intensity)
+                    b = Math.floor(255 * intensity)
+                } else {  // White to red
+                    const intensity = (shade - 128) / 128
+                    r = 255
+                    g = Math.floor(255 * (1 - intensity))
+                    b = Math.floor(255 * (1 - intensity))
+                }
+                return [r, g, b];
+            }
+
+            async function checkFeeds() {
+                const mpaIds = Object.values(MPAS);
+                const assets = await pool.getObjects(mpaIds);
+                for (const asset of assets) {
+                    precisionCache[asset.id] = asset.precision;
+                }
+                const bitassetIds = assets.map((a) => a.bitasset_data_id);
+                const bitassets = await pool.getObjects(bitassetIds);
+
+                const now = Date.now() / 1000;
+
+                const tokensInError = {};
+
+                for (let i = 0; i < bitassets.length; i++) {
+                    const token = Object.keys(MPAS)[i];
+                    tokensInError[token] = {};
+                    const feeds = bitassets[i].feeds;
+                    const prices = [];
+
+                    // Get all settlement prices
+                    for (const feed of feeds) {
+                        const price = await settlementPrice(feed[1][1]);
+                        if (price > 0) prices.push(price);
+                    }
+
+                    const medianPrice = prices.sort((a, b) => a - b)[Math.floor(prices.length / 2)] || 0;
+
+                    // Process feeds
+                    for (const feed of feeds) {
+                        const producerId = feed[0];
+                        const timestamp = fromIsoDate(feed[1][0]);
+                        const age = now - timestamp;
+                        const price = await settlementPrice(feed[1][1]);
+
+                        let producerName;
+
+                        if (producerNameCache[producerId]) {
+                            producerName = producerNameCache[producerId];
+                        } else {
+                            const producer = await pool.getObjects([producerId]);
+                            producerName = producer[0].name;
+                            producerNameCache[producerId] = producerName; // Save it to cache
+                        }
+
+                        let statusText = "";
+                        let cls = "ok";
+
+                        tokensInError[token][producerName] = { age: age, deviation: price / medianPrice - 1 };
+                    }
+                }
+                const table = document.getElementById("feedTable");
+
+                let tih = "";
+                const prodNames = Object.values(producerNameCache);
+                tih = "<tbody><tr><th>Token Name</th>";
+
+                for (const pName of prodNames) {
+                    tih += `<th id="header-${pName}">${pName}</th>`;
+                }
+
+                tih += "</tr>";
+
+                const max_dev = 5;
+                let i = 0;
+                for (const [token, tdata] of Object.entries(tokensInError)) {
+                    i += 1;
+                    tih += `<tr${i % 2 ? ' class="alt"' : ""}><td>${token}</td>`;
+                    for (const pName of prodNames) {
+                        let color = gradient(Math.max(0, Math.min(255, Math.abs(tdata[pName]["deviation"] * 100 * 255)/max_dev)));
+                        if (tdata[pName]["age"] > 3600*1.5) {
+                            color = gradient(Math.max(0, Math.min(255, Math.abs(tdata[pName]["age"] / (3600*5)))));
+                        }
+
+                        tih += `<td style="color: rgb(${color[0]}, ${color[1]}, ${color[2]});">`;
+                        tih += tdata[pName]["deviation"] >= 0 ? "&nbsp;" : "";
+                        tih += (tdata[pName]["deviation"] * 100).toFixed(2);
+                        tih += "% off - ";
+                        tih += convertSeconds(tdata[pName]["age"]);
+                        tih += " ago</td>";
+                    }
+                    tih += "</tr>";
+                }
+
+                tih += "</tbody>";
+
+                document.getElementById("updateStamp").innerHTML = `Last Updated at ${new Date().toLocaleString()}`
+                table.innerHTML = tih;
+            }
+
+            // Run initially
+            checkFeeds();
+
+            // Repeat every 5 mins
+            setInterval(checkFeeds, 5 * 60 * 1000);
+        </script>
+    </body>
+</html>
