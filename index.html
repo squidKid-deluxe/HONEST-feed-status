@@ -235,7 +235,7 @@
                     for (const pName of prodNames) {
                         let color = gradient(Math.max(0, Math.min(255, Math.abs(tdata[pName]["deviation"] * 100 * 255)/max_dev)));
                         if (tdata[pName]["age"] > 3600*1.5) {
-                            color = gradient(Math.max(0, Math.min(255, Math.abs(tdata[pName]["age"] / (3600*5)))));
+                            color = gradient(Math.max(0, Math.min(255, Math.abs((tdata[pName]["age"] / (3600*5)) * 255))));
                         }
 
                         tih += `<td style="color: rgb(${color[0]}, ${color[1]}, ${color[2]});">`;
