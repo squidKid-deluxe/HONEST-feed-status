@@ -94,14 +94,9 @@
 
             const NODES = [
                 "wss://api.bts.mobi/wss",
-                "wss://api.61bts.com/ws",
-                "wss://api-us.61bts.com",
+                "wss://api.bitshares.dev/wss",
                 "wss://api.dex.trading/wss",
-                "wss://api.btslebin.com/wss",
-                "wss://eu.nodes.bitshares.ws/ws",
-                "wss://bitsharesapi.loclx.io",
-                "wss://btsws.roelandp.nl/ws",
-                "wss://dex.iobanker.com/ws",
+                "wss://dex.iobanker.com/wss",
                 "wss://node.xbts.io/ws",
             ];
 
@@ -255,10 +250,17 @@
             }
 
             // Run initially
-            checkFeeds();
+            runChecks();
 
             // Repeat every 5 mins
-            setInterval(checkFeeds, 5 * 60 * 1000);
+            setInterval(runChecks, 5 * 60 * 1000);
+
+            function runChecks() {
+                checkFeeds().catch((err) => {
+                    document.getElementById("updateStamp").textContent =
+                        `Failed to reach BitShares API nodes: ${err?.message || err}`;
+                });
+            }
         </script>
     </body>
 </html>

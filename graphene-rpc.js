@@ -17,6 +17,10 @@ class GrapheneRPC {
         this.queue = [];
         this.timeout = timeout;
         this.connectionPromise = this.connect();
+        // A failed handshake rejects this promise forever; consume it so dead
+        // nodes don't surface as unhandled rejections (the browser already
+        // logs the underlying WebSocket error).
+        this.connectionPromise.catch(() => {});
     }
 
     /**
@@ -334,9 +338,13 @@ class GrapheneRPCPool {
         let lastError;
 
         for (let i = 0; i < this.maxRetries; i++) {
-            // Pick a random untried instance
-            const candidates = this.instances.filter((_, index) => !tried.has(index));
+            let candidates = this.instances.filter((_, index) => !tried.has(index));
             if (candidates.length === 0) break;
+
+            // Prefer instances whose WebSocket handshake completed, so
+            // requests aren't queued on nodes that never connected.
+            const healthy = candidates.filter((instance) => instance.connected);
+            if (healthy.length > 0) candidates = healthy;
 
             const index = Math.floor(Math.random() * candidates.length);
             const instance = candidates[index];
